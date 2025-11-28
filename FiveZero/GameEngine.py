@@ -25,15 +25,15 @@ class State:
 def new_game():
     return State(board=np.zeros((N, N), dtype=np.int8), player=1)
 
-def legal_mask(s: State):
-    return (s.board.reshape(-1) == 0)  # shape (25,), bools
+def legal_moves(s: State):
+    mask = (s.board.reshape(-1) == 0)
+    indices = np.where(mask)[0]
+    return indices
 
 def step(s: State, a: int):
     r, c = divmod(a, N)
-    if s.board[r, c] != 0:
-        raise ValueError("illegal move")
     b = s.board.copy()
-    b[r, c] = s.player
+    b[r,c] = s.player
     return State(board=b, player=-s.player)
 
 def winner(board: np.ndarray) -> int:
@@ -81,3 +81,9 @@ def render(s: State):
     rows = [" ".join(sym[int(v)] for v in s.board[r]) for r in range(N)]
     turn = "X" if s.player == 1 else "O"
     return f"to move: {turn}\n" + "\n".join(rows)
+
+def random_play(s: State):
+    moves = legal_moves(s)
+    if len(moves) == 0:
+        raise ValueError("No legal moves left")
+    return step(s, np.random.choice(moves))
