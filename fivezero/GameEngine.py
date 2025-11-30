@@ -13,14 +13,30 @@ Functions:
 
 from dataclasses import dataclass
 import numpy as np
+from enum import IntEnum
 
 N = 5
 K = 4  # win length
 
-@dataclass
+class Actor(IntEnum):
+    POSITIVE = 1
+    NEGATIVE = -1
+
 class State:
-    board: np.ndarray          # shape (5,5), values in {-1,0,+1}
-    player: int               # +1 (X) or -1 (O) to move
+    def __init__(self, board: np.ndarray, player: Actor | None = None):
+        self.board = board
+        self.player = player if player is not None else Actor.POSITIVE
+        
+        if all(board.reshape(-1) == 0):
+            assert self.player == Actor.POSITIVE
+        
+class Move:
+    def __init__(self, index: int):
+        self.index = index
+        self.r, self.c = divmod(index, N)
+
+    def __repr__(self):
+        return f"Move({self.r}, {self.c})"
 
 def new_game():
     return State(board=np.zeros((N, N), dtype=np.int8), player=1)
@@ -64,6 +80,9 @@ def terminal_value(s: State):
     if not np.any(s.board == 0):
         return 0
     return None
+
+def is_terminal(s: State):
+    return terminal_value(s) is not None
 
 def canonical_board(s: State):
     # make "player to move" always be +1

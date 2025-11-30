@@ -1,4 +1,4 @@
-from fivezero.gameEngine import State, legal_moves, step
+from fivezero.gameEngine import State, legal_moves, step, Actor
 from fivezero.net import ConvNet
 from typing import List
 import numpy as np
@@ -6,9 +6,11 @@ import numpy as np
 c = 1.414
 
 class Node:
-    def __init__(self, move: int = None, actor: int = None, game_state: State = None, parent: "Node" = None, epsilon: float =0.01):
+    def __init__(self, move: int = None, actor: Actor = None, game_state: State = None, parent: "Node" = None, epsilon: float =0.01):
         self.children: List[Node] = []
-        self.actor = actor
+        if actor is None:
+            # Actor.POSITIVE always starts
+            self.actor = Actor.POSITIVE if parent is None else -parent.actor
         self.parent = parent
         self.game_state: State = game_state # current board state
         self.move: int = move # edge move (lands you to self.game_state)
