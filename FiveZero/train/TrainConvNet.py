@@ -1,6 +1,6 @@
-from FiveZero.GameEngine import *
-from FiveZero.net import ConvNet
-from FiveZero.tree import Node
+from fivezero.gameEngine import *
+from fivezero.net import ConvNet
+from fivezero.tree import Node
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,15 +9,23 @@ import random
 import time
 
 N_epochs = 1
-games_per_epoch = 100
+games_per_epoch = 10
+mcts_rollouts_per_move = 20
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 root = Node(move=None, actor=1, game_state=new_game())
-net = ConvNet(device).to(device)
+net = ConvNet(device)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(net.parameters(), lr=0.001)
+
+def mcts_rollout(node: Node):
+    """
+    Perform MCTS rollouts from the given (root) node. 
+    Returns the value of the root node only.
+    """
+    raise NotImplementedError("MCTS rollouts not implemented")
 
 for epoch in range(N_epochs):
     net.train()
@@ -45,6 +53,8 @@ for epoch in range(N_epochs):
             game_state = random_play(game_state)
             trace.append((game_state, None))
         traces.append(trace)
+
+    # train the network
 
 assert False
 

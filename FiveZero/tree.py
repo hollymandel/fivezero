@@ -1,8 +1,6 @@
-from FiveZero.GameEngine import State
+from fivezero.gameEngine import State, legal_moves, step
+from fivezero.net import ConvNet
 from typing import List
-import numpy as np
-from FiveZero.GameEngine import legal_moves, step
-from FiveZero.net import ConvNet
 import numpy as np
 
 c = 1.414
@@ -15,6 +13,7 @@ class Node:
         self.game_state: State = game_state # current board state
         self.move: int = move # edge move (lands you to self.game_state)
         self.visits = epsilon
+        self.value = 0
 
     def fully_expanded(self):
         return len(self.children) == len(legal_moves(self.game_state))

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from typing import List
-from FiveZero.GameEngine import N, State
+from fivezero.gameEngine import N, State
 
 class ConvNet(torch.nn.Module):
     def __init__(self, device: torch.device):
