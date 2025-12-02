@@ -1,18 +1,20 @@
-from fivezero.gameEngine import State, legal_moves, step, Actor
+from fivezero.gameEngine import State, legal_moves, step, Actor, new_game
 from fivezero.net import ConvNet
-from typing import List
+from typing import List, Optional
 import numpy as np
 
 c = 1.414
 
 class Node:
-    def __init__(self, move: int = None, actor: Actor = None, game_state: State = None, parent: "Node" = None, epsilon: float =0.01):
+    def __init__(self, move: Optional[int] = None, actor: Optional[Actor] = None, game_state: Optional[State] = None, parent: Optional["Node"] = None, epsilon: float = 0.01):
         self.children: List[Node] = []
         if actor is None:
             # Actor.POSITIVE always starts
             self.actor = Actor.POSITIVE if parent is None else -parent.actor
+        else:
+            self.actor = actor
         self.parent = parent
-        self.game_state: State = game_state # current board state
+        self.game_state: State = game_state if game_state is not None else new_game()
         self.move: int = move # edge move (lands you to self.game_state)
         self.visits = epsilon
         self.value = 0
@@ -21,7 +23,7 @@ class Node:
         return len(self.children) == len(legal_moves(self.game_state))
 
     def select(self, policy_net: ConvNet):
-        previous_max = 0
+        previous_max = -np.inf
         best_child = None
         policy, value = policy_net.forward([self.game_state]) 
         for child in self.children:
