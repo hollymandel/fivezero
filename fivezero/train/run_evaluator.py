@@ -1,7 +1,7 @@
 import torch
-from fivezero.train.evaluator import evaluate
-from fivezero.net import ConvNet
-from fivezero.gameEngine import Actor, new_game, is_terminal
+from evaluator import evaluate
+from net import ConvNet
+from gameEngine import Actor, new_game, is_terminal
 import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

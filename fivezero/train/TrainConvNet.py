@@ -1,6 +1,7 @@
-from fivezero.gameEngine import *
-from fivezero.net import ConvNet
-from fivezero.tree import Node
+from gameEngine import *
+from net import ConvNet
+from tree import Node
+from step import play_step
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,6 +12,7 @@ import time
 N_epochs = 1
 games_per_epoch = 10
 mcts_rollouts_per_move = 20
+batch_size = 4
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -20,42 +22,46 @@ net = ConvNet(device)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(net.parameters(), lr=0.001)
 
-def mcts_rollout(node: Node):
-    """
-    Perform MCTS rollouts from the given (root) node. 
-    Returns the value of the root node only.
-    """
-    raise NotImplementedError("MCTS rollouts not implemented")
+def represent_child_distribution(child_visits_raw: dict[int, int], temperature) -> np.ndarray:
+    """cannonical representation of child distribution for 
+    MCTS rollouts to match shape of policy network output"""
+
+    distribution_tensor = torch.zeros(N**2)
+    for move, visits in child_visits_raw.items():
+        distribution_tensor[move] = np.power(visits, 1/temperature)
+    return distribution_tensor / torch.sum(distribution_tensor)
 
 for epoch in range(N_epochs):
-    net.train()
     traces = []
-    for i in range(games_per_epoch):
+    for game in range(games_per_epoch):
+        # evaluator
+
+        # play game, collect rollouts
         trace = []
         game_state = new_game()
-        node = root
-        while terminal_value(game_state) is None:
-            if node.fully_expanded(): 
-                # selection
-                node, action = node.select(net)
-                game_state = step(game_state, action)
-                trace.append((game_state, action))
+        while not is_terminal(game_state):
+            child, child_visits_raw = play_step(game_state, net, net, temperature=1.0, N_rollouts_per_move=mcts_rollouts_per_move)
+            trace.append((game_state, represent_child_distribution(child_visits_raw, 1.0)))
+            game_state = child.game_state
 
-            else:
-                # expansion
-                node, action = node.expand()
-                game_state = step(game_state, action)
-                trace.append((game_state, action))
-                break
+        z = winner(game_state.board)
+        trace = [(state, move, z) for state, move in trace]
+        trace = trace[::-1]
 
-        while terminal_value(game_state) is None:
-            # random play
-            game_state = random_play(game_state)
-            trace.append((game_state, None))
         traces.append(trace)
+    
+    # update in batches
+    for batch in range(0, len(traces), batch_size):
+        batch_traces = traces[batch:batch+batch_size]
+        batch_states = [ state for trace in batch_traces for state, _, _ in trace ]
+        batch_states = torch.stack([ net.encode(state) for state in batch_states ])
 
-    # train the network
+        batch_moves = [ move for trace in batch_traces for _, move, _ in trace ]
+        batch_zs = [ z for trace in batch_traces for _, _, z in trace ]
 
-assert False
+        # net predictions
+        policy_predictions, value_predictions = net.forward(batch_states)
+        
 
-            
+
+        

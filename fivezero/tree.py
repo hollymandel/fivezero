@@ -1,5 +1,5 @@
-from fivezero.gameEngine import State, legal_moves, step, Actor, new_game
-from fivezero.net import ConvNet
+from gameEngine import State, legal_moves, step, Actor, new_game
+from net import ConvNet
 from typing import List, Optional
 import numpy as np
 

@@ -1,9 +1,9 @@
-from fivezero.tree import Node
-from fivezero.net import ConvNet
+from tree import Node
+from net import ConvNet
 from dataclasses import dataclass
-from fivezero.gameEngine import State, new_game, step, random_play, Move, is_terminal, terminal_value, Actor
+from gameEngine import State, new_game, step, random_play, Move, is_terminal, terminal_value, Actor
 from typing import List
-
+import pdb
 @dataclass
 class trace_sample:
     game_state: State
@@ -28,19 +28,24 @@ def mcts_rollout(root: Node, netp: ConvNet, netn: ConvNet | None = None) -> None
 
     while not is_terminal(game_state):
         use_net = netp if node.actor == 1 else netn
-
+        pdb.set_trace()
         if node.fully_expanded(): 
             # selection
             node, action = node.select(use_net)
             game_state = step(game_state, action)
+            print(f"Selected action: {action}")
+            print(f"Game state: {game_state}")
 
         else:
             # expansion
             node, action = node.expand()
             game_state = step(game_state, action)
+            print(f"Expanded action: {action}")
+            print(f"Game state: {game_state}")
             break
 
     while not is_terminal(game_state):
+        print("moved on to random play")
         # random play
         game_state = random_play(game_state)
 
@@ -55,5 +60,3 @@ def mcts_rollout(root: Node, netp: ConvNet, netn: ConvNet | None = None) -> None
         node.visits += 1
     node.value += value * node.actor
     node.visits += 1
-
-

@@ -1,7 +1,7 @@
-from fivezero.tree import Node
-from fivezero.train.mcts import mcts_rollout
-from fivezero.net import ConvNet
-from fivezero.gameEngine import Actor, new_game, is_terminal, winner
+from tree import Node
+from mcts import mcts_rollout
+from net import ConvNet
+from gameEngine import Actor, new_game, is_terminal, winner
 import numpy as np
 
 TEMPERATURE = 1.0
