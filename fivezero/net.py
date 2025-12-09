@@ -15,30 +15,42 @@ class ConvNet(torch.nn.Module):
         self.relu3 = torch.nn.ReLU()
         self.conv4 = torch.nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
         self.relu4 = torch.nn.ReLU()
-        self.fc_policy = torch.nn.Linear(32 * N**2, N**2) # prob of each move 
-        self.fc_value = torch.nn.Linear(32 * N**2, N**2) # value, if each move taken 
+        self.fc_policy = torch.nn.Linear(32 * N**2, N**2) # P(s,a) prob of each move a given s
+        self.fc_value = torch.nn.Linear(32 * N**2, N**2) # Q(s,a) value of each move a given s
         self.device = device
 
         # move to device
         self.to(device)
 
     def encode(self, x: State):
+        """ returns board as 1x2x5x5, stack batch along dimension 0"""
         x_board = torch.tensor(x.board == 1, dtype=torch.float32, device=self.device)
         x_opponent = torch.tensor(x.board == -1, dtype=torch.float32, device=self.device)
         x = torch.stack([x_board, x_opponent], dim=0)
+        # add batch dimension
+        x = x.unsqueeze(0)
         return x
 
-    def forward(self, x: List[State]):
-        # process to a 2x5x5 tensor, one channel for each player
-        x = [self.encode(x_i) for x_i in x]
-        x = torch.stack(x, dim=0)
+    # caching here?
+    def internal_forward(self, x):
+        # # process to a 2x5x5 tensor, one channel for each player
+        # x = [self.encode(x_i) for x_i in x]
+        # x = torch.stack(x, dim=0)
 
         # skip connections at each layer after first
         res = self.relu1(self.conv1(x))
         res = self.relu1(self.conv2(res)) + res
         res = self.relu1(self.conv3(res)) + res
         res = self.relu1(self.conv4(res)) + res
-        res = res.view(res.size(0), -1) # (batch_size, 32 * N**2)
-        res_policy = nn.Softmax(dim=1)(self.fc_policy(res))
-        res_value = nn.Tanh()(self.fc_value(res))
-        return res_policy, res_value
+        return res.view(res.size(0), -1) # (batch_size, 32 * N**2)
+
+    def forward_policy(self, x):
+        last_hidden = self.internal_forward(x)
+        return nn.Softmax(dim=1)(self.fc_policy(last_hidden))
+
+    def forward_value(self, x):
+        last_hidden = self.internal_forward(x)
+        return nn.Tanh()(self.fc_value(last_hidden))
+
+    def forward(self, x):
+        return self.forward_policy(x), self.forward_value(x)

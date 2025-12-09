@@ -23,29 +23,32 @@ def mcts_rollout(root: Node, netp: ConvNet, netn: ConvNet | None = None) -> None
     else:
         netn = netp
 
-    game_state = new_game()
+    game_state = root.game_state
     node = root
 
     while not is_terminal(game_state):
         use_net = netp if node.actor == 1 else netn
-        pdb.set_trace()
         if node.fully_expanded(): 
             # selection
-            node, action = node.select(use_net)
+            node, action = node.select()
             game_state = step(game_state, action)
-            print(f"Selected action: {action}")
-            print(f"Game state: {game_state}")
+            # print(f"Selected action: {action}")
+            # print(f"Game state: \n{game_state.board}")
+            # print(f"Node: {node.game_state.board}")
 
         else:
             # expansion
-            node, action = node.expand()
+            node.fully_expand(netp)
+            node, action = node.select()
             game_state = step(game_state, action)
-            print(f"Expanded action: {action}")
-            print(f"Game state: {game_state}")
+            # print(f"Expanded action: {action}")
+            # print(f"Game state: \n{game_state.board}")
+            # print(f"Node: {node.game_state.board}")
             break
 
+
+    # print("moved on to random play\n\n")
     while not is_terminal(game_state):
-        print("moved on to random play")
         # random play
         game_state = random_play(game_state)
 
