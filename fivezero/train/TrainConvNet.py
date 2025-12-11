@@ -12,8 +12,8 @@ import random
 import time
 
 N_epochs = 1
-games_per_epoch = 30
-mcts_rollouts_per_move = 100
+games_per_epoch = 10
+mcts_rollouts_per_move = 10
 batch_size = 16
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,10 +25,10 @@ value_criterion = nn.MSELoss()
 policy_criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(net.parameters(), lr=0.001)
 
-def loss_function(policy_predictions, value_predictions, batch_moves, batch_zs):
+def loss_function(policy_predictions, value_predictions, batch_zs):
     value_loss = value_criterion(value_predictions, batch_zs)
-    policy_loss = policy_criterion(policy_predictions, batch_moves)
-    return value_loss + policy_loss
+    policy_loss = -1 * torch.log(policy_predictions)
+    return (value_loss + policy_loss).mean()
 
 # def represent_child_distribution(child_visits_raw: dict[int, int], temperature) -> np.ndarray:
 #     """cannonical representation of child distribution for 
@@ -42,10 +42,11 @@ def loss_function(policy_predictions, value_predictions, batch_moves, batch_zs):
 def node_to_child_distribution(parent, temperature) -> np.ndarray:
     """cannonical representation of child distribution"""
 
-    distribution_tensor = torch.zeros(N**2)
+    distribution_tensor = np.zeros(N**2)
+    assert parent.fully_expanded()
     for child in parent.children:
-        distribution_tensor[child.move] = torch.power(child.visits, 1/temperature)
-    return distribution_tensor / torch.sum(distribution_tensor)
+        distribution_tensor[child.move] = np.power(child.visits, 1/temperature)
+    return torch.tensor(distribution_tensor / np.sum(distribution_tensor))
 
 for epoch in range(N_epochs):
     traces = []
@@ -59,10 +60,12 @@ for epoch in range(N_epochs):
         # play game, collect rollouts
         trace = []
         game_state = new_game()
+        parent_node = root
         while not is_terminal(game_state):
-            child, _ = play_step(game_state, net, net, temperature=1.0, N_rollouts_per_move=mcts_rollouts_per_move)
-            trace.append((game_state, child))
-            game_state = child.game_state
+            parent_node, child_node = play_step(parent_node, net, net, temperature=1.0, N_rollouts_per_move=mcts_rollouts_per_move)
+            trace.append((parent_node, child_node))
+            game_state = child_node.game_state
+            parent_node = child_node
 
         z = winner(game_state.board)
         if z == 1:
@@ -71,7 +74,7 @@ for epoch in range(N_epochs):
             wins_n += 1
         elif z == 0:
             draws += 1
-        trace = [(state, child_node, z) for state, child_node in trace]
+        trace = [(parent_node, child_node, z) for parent_node, child_node in trace]
         trace = trace[::-1]
 
         traces.extend(trace)
@@ -79,29 +82,47 @@ for epoch in range(N_epochs):
     # update in batches
     for batch in range(0, len(traces), batch_size):
         batch_traces = traces[batch:batch+batch_size]
-        batch_states = [ state for state, _, _ in batch_traces ]
+        batch_states = [ parent_node.game_state for parent_node, _, _ in batch_traces ]
         batch_states = torch.concatenate([ net.encode(state) for state in batch_states ], dim=0)
 
-        batch_moves = torch.tensor([ child.move for _, child, _ in batch_traces ], dtype=torch.int64, device=device) 
-        batch_values = torch.stack([ child.Q for  _, child, _ in batch_traces ])
+        batch_moves = torch.tensor([ child_node.move for _, child_node, _ in batch_traces ], dtype=torch.int64, device=device) 
         batch_zs = torch.tensor([ z for _, _, z in batch_traces ], dtype=torch.float32, device=device)   
-        batch_policies = [
-            node_to_child_distribution(node, 1.0) for _, node, _  in batch_traces
-        ]
-        batch_policies = torch.stack(batch_policies, dim=0)
 
-        # # net predictions
-        # policy_predictions, value_predictions = net.forward(batch_states)
+        # net predictions
+        policy_predictions, value_predictions = net.forward(batch_states)
+        value_predictions = [
+            value_predictions[0, child_node.move] for i, (_, child_node, _) in enumerate(batch_traces)
+        ]
+        value_predictions = torch.stack(value_predictions, dim=0)
+
+        # empirical distribution of child nodes
+        empirical_policies = [
+            node_to_child_distribution(parent_node, 1.0) for parent_node, _, _ in batch_traces
+        ]
+        empirical_policies = torch.stack(empirical_policies, dim=0)
         # # surely not? just compute V directly for parent state?
         # state_values = torch.sum(policy_predictions * value_predictions, dim=1) # (batch_size, N**2)
-        import pdb
-        pdb.set_trace()
-        loss = loss_function(batch_policies, batch_values, batch_moves, batch_zs)
+        # import pdb
+        # pdb.set_trace()
+
+        # Value loss
+        value_loss = value_criterion(value_predictions, batch_zs)
+
+        # Policy loss
+        policy_loss = policy_criterion(policy_predictions, empirical_policies)
+        # Total loss
+        loss = value_loss + policy_loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        print("Loss: ", loss.item())
+        # loss = loss_function(batch_policies, batch_values, batch_zs)
+        # optimizer.zero_grad()
+        # loss.backward()
+        # optimizer.step()
+        # print("Loss: ", loss.item())
 
-        pdb.set_trace()
+        # pdb.set_trace()
 
 
 print(f"Wins for positive player: {wins_p}")

@@ -2,12 +2,13 @@ from gameEngine import State, legal_moves, step, Actor, new_game
 from net import ConvNet
 from typing import List, Optional
 import numpy as np
+from torch import nn
 
 c = 1.414
 
 class Node:
     def __init__(self, move: Optional[int] = None, actor: Optional[Actor] = None, game_state: Optional[State] = None, parent: Optional["Node"] = None, epsilon: float = 0.01):
-        self.children: List[Node] = []
+        self.children: List[Node] = [] 
         if actor is None:
             # Actor.POSITIVE always starts
             self.actor = Actor.POSITIVE if parent is None else -parent.actor
@@ -18,8 +19,8 @@ class Node:
         self.move: int = move # edge move (lands you to self.game_state)
         self.visits = epsilon
         self.value = 0
-        self.Q = 0 # latest value estimate for this node. Retain grad.
-        self.P = 0
+        self.Q = 0 # value tensor of moving landing here. No grad.
+        self.P = 0 # policy tensor of move landing here. No grad.
 
     def fully_expand(self, policy_net: ConvNet, overwrite: bool = False):
         if len(self.children) > 0 and not overwrite:
@@ -27,10 +28,13 @@ class Node:
 
         policy, value = policy_net.forward(policy_net.encode(self.game_state))
 
+        # softmax the policy
+        policy = nn.Softmax(dim=1)(policy)
+
         for possible_move in legal_moves(self.game_state):
             new_child = Node(move=possible_move, actor=-self.actor, game_state=step(self.game_state, possible_move), parent=self)
-            new_child.P = policy[0,possible_move]
-            new_child.Q = value[0,possible_move]
+            new_child.P = policy[0,possible_move].item()
+            new_child.Q = value[0,possible_move].item()
             self.children.append(new_child)
 
     def fully_expanded(self):
@@ -41,7 +45,7 @@ class Node:
         best_child = None
 
         for child in self.children:
-            selection_value = child.Q.item() + c * child.P.item() * np.sqrt(self.visits) / (1 + child.visits)
+            selection_value = child.Q + c * child.P * np.sqrt(self.visits) / (1 + child.visits)
             if selection_value > previous_max:
                 previous_max = selection_value
                 best_child = child

@@ -46,7 +46,8 @@ class ConvNet(torch.nn.Module):
 
     def forward_policy(self, x):
         last_hidden = self.internal_forward(x)
-        return nn.Softmax(dim=1)(self.fc_policy(last_hidden))
+        # return nn.Softmax(dim=1)(self.fc_policy(last_hidden))
+        return self.fc_policy(last_hidden)
 
     def forward_value(self, x):
         last_hidden = self.internal_forward(x)
