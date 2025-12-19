@@ -49,7 +49,7 @@ def legal_moves(s: State):
 def step(s: State, a: int):
     r, c = divmod(a, N)
     b = s.board.copy()
-    b[r,c] = s.player
+    b[r,c] = s.player # game state player is next-to-play for game state board
     return State(board=b, player=-s.player)
 
 def winner(board: np.ndarray) -> int:

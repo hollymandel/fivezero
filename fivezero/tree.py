@@ -1,8 +1,9 @@
-from gameEngine import State, legal_moves, step, Actor, new_game
-from net import ConvNet
+from fivezero.gameEngine import State, legal_moves, step, Actor, new_game
+from fivezero.net import ConvNet
 from typing import List, Optional
 import numpy as np
 from torch import nn
+import torch
 
 c = 1.414
 
@@ -10,23 +11,29 @@ class Node:
     def __init__(self, move: Optional[int] = None, actor: Optional[Actor] = None, game_state: Optional[State] = None, parent: Optional["Node"] = None, epsilon: float = 0.01):
         self.children: List[Node] = [] 
         if actor is None:
-            # Actor.POSITIVE always starts
+            # Actor = next to play. Actor.POSITIVE always starts (with empty board)
             self.actor = Actor.POSITIVE if parent is None else -parent.actor
         else:
             self.actor = actor
         self.parent = parent
+
+        if game_state is not None and actor is not None:
+            assert game_state.player == actor, "Game state player does not match actor"
         self.game_state: State = game_state if game_state is not None else new_game()
         self.move: int = move # edge move (lands you to self.game_state)
         self.visits = epsilon
-        self.value = 0
+        self.value = 0 # number of wins for games that passes through this node, from the perspective of the actor to play next (self.actor)
         self.Q = 0 # value tensor of moving landing here. No grad.
         self.P = 0 # policy tensor of move landing here. No grad.
 
-    def fully_expand(self, policy_net: ConvNet, overwrite: bool = False):
+    def fully_expand(self, policy_net: ConvNet | None, overwrite: bool = False):
         if len(self.children) > 0 and not overwrite:
             raise ValueError("Node already has children, set overwrite=True to overwrite")
 
-        policy, value = policy_net.forward(policy_net.encode(self.game_state))
+        if policy_net is None:
+            policy, value = torch.zeros(1, 25), torch.zeros(1, 25)
+        else:
+            policy, value = policy_net.forward(policy_net.encode(self.game_state))
 
         # softmax the policy
         policy = nn.Softmax(dim=1)(policy)
@@ -46,6 +53,22 @@ class Node:
 
         for child in self.children:
             selection_value = child.Q + c * child.P * np.sqrt(self.visits) / (1 + child.visits)
+            if selection_value > previous_max:
+                previous_max = selection_value
+                best_child = child
+        if best_child is None:
+            raise ValueError("No best child found")
+        return best_child, best_child.move
+
+    def uct_select(self):
+        previous_max = -np.inf
+        best_child = None
+
+        for child in self.children:
+            if child.visits > 1001:
+                import pdb
+                pdb.set_trace()
+            selection_value = child.value / (1 + child.visits) + c * np.sqrt(self.visits) / (1 + child.visits)
             if selection_value > previous_max:
                 previous_max = selection_value
                 best_child = child
@@ -80,4 +103,4 @@ class Node:
         raise ValueError("No legal moves left to expand")
 
     def __repr__(self):
-        return f"{self.actor} plays {self.move}"
+        return f"{-self.actor} played {self.move}"

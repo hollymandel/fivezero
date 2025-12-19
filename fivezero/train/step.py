@@ -1,11 +1,11 @@
-from tree import Node
-from mcts import mcts_rollout
-from net import ConvNet
-from gameEngine import Actor, new_game, is_terminal, winner, State
+from fivezero.tree import Node
+from fivezero.train.mcts import mcts_rollout
+from fivezero.net import ConvNet
+from fivezero.gameEngine import Actor, new_game, is_terminal, winner, State
 import numpy as np
 
 
-def play_step(parent_node: Node, player_net: ConvNet, opponent_net: ConvNet, temperature: float = 1.0, N_rollouts_per_move: int = 100) -> float:
+def play_step(parent_node: Node, player_net: ConvNet | None, opponent_net: ConvNet | None, use_uct: bool = False, temperature: float = 1.0, N_rollouts_per_move: int = 100) -> float:
     """
     Evaluate the given network on the given root node.
     """
@@ -18,9 +18,9 @@ def play_step(parent_node: Node, player_net: ConvNet, opponent_net: ConvNet, tem
     # populate node with MCTS rollouts
     for _ in range(N_rollouts_per_move):
         if start_state.player == Actor.POSITIVE:
-            mcts_rollout(parent_node, player_net, opponent_net)
+            mcts_rollout(parent_node, player_net, opponent_net, use_uct)
         else:
-            mcts_rollout(parent_node, opponent_net, player_net)
+            mcts_rollout(parent_node, opponent_net, player_net, use_uct)
 
     # determine distribution of the root node's children
     child_visits_raw = { child.move: child.visits for child in parent_node.children }

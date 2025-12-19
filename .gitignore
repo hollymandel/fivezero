@@ -1,2 +1,3 @@
 *.pyc
 __pycache__/
+fivezero/train/dec_11/*

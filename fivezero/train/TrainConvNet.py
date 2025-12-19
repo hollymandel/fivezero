@@ -10,11 +10,13 @@ import torch.optim as optim
 import numpy as np
 import random
 import time
+import pickle
 
-N_epochs = 1
+N_epochs = 10
 games_per_epoch = 10
-mcts_rollouts_per_move = 10
-batch_size = 16
+mcts_rollouts_per_move = 1000
+batch_size = 64
+N_training_epochs = 10
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -55,8 +57,7 @@ for epoch in range(N_epochs):
     draws = 0
 
     for game in range(games_per_epoch):
-        # evaluator
-
+        game_start = time.time()
         # play game, collect rollouts
         trace = []
         game_state = new_game()
@@ -78,51 +79,49 @@ for epoch in range(N_epochs):
         trace = trace[::-1]
 
         traces.extend(trace)
+        game_end = time.time()
+        print(f"Game {game} of epoch {epoch} took {game_end - game_start} seconds")
     
     # update in batches
-    for batch in range(0, len(traces), batch_size):
-        batch_traces = traces[batch:batch+batch_size]
-        batch_states = [ parent_node.game_state for parent_node, _, _ in batch_traces ]
-        batch_states = torch.concatenate([ net.encode(state) for state in batch_states ], dim=0)
+    for training_epoch in range(N_training_epochs):
+        random.shuffle(traces)
+        for batch in range(0, len(traces), batch_size):
+            batch_traces = traces[batch:batch+batch_size]
+            batch_states = [ parent_node.game_state for parent_node, _, _ in batch_traces ]
+            batch_states = torch.concatenate([ net.encode(state) for state in batch_states ], dim=0)
 
-        batch_moves = torch.tensor([ child_node.move for _, child_node, _ in batch_traces ], dtype=torch.int64, device=device) 
-        batch_zs = torch.tensor([ z for _, _, z in batch_traces ], dtype=torch.float32, device=device)   
+            batch_moves = torch.tensor([ child_node.move for _, child_node, _ in batch_traces ], dtype=torch.int64, device=device) 
+            batch_zs = torch.tensor([ z for _, _, z in batch_traces ], dtype=torch.float32, device=device)   
 
-        # net predictions
-        policy_predictions, value_predictions = net.forward(batch_states)
-        value_predictions = [
-            value_predictions[0, child_node.move] for i, (_, child_node, _) in enumerate(batch_traces)
-        ]
-        value_predictions = torch.stack(value_predictions, dim=0)
+            # net predictions
+            policy_predictions, value_predictions = net.forward(batch_states)
+            value_predictions = [
+                value_predictions[0, child_node.move] for i, (_, child_node, _) in enumerate(batch_traces)
+            ]
+            value_predictions = torch.stack(value_predictions, dim=0)
 
-        # empirical distribution of child nodes
-        empirical_policies = [
-            node_to_child_distribution(parent_node, 1.0) for parent_node, _, _ in batch_traces
-        ]
-        empirical_policies = torch.stack(empirical_policies, dim=0)
-        # # surely not? just compute V directly for parent state?
-        # state_values = torch.sum(policy_predictions * value_predictions, dim=1) # (batch_size, N**2)
-        # import pdb
-        # pdb.set_trace()
+            # empirical distribution of child nodes
+            empirical_policies = [
+                node_to_child_distribution(parent_node, 1.0) for parent_node, _, _ in batch_traces
+            ]
+            empirical_policies = torch.stack(empirical_policies, dim=0)
 
-        # Value loss
-        value_loss = value_criterion(value_predictions, batch_zs)
+            value_loss = value_criterion(value_predictions, batch_zs)
+            policy_loss = policy_criterion(policy_predictions, empirical_policies)
+            loss = value_loss + policy_loss
 
-        # Policy loss
-        policy_loss = policy_criterion(policy_predictions, empirical_policies)
-        # Total loss
-        loss = value_loss + policy_loss
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        print("Loss: ", loss.item())
-        # loss = loss_function(batch_policies, batch_values, batch_zs)
-        # optimizer.zero_grad()
-        # loss.backward()
-        # optimizer.step()
-        # print("Loss: ", loss.item())
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-        # pdb.set_trace()
+            # save some data 
+            save_tuple = (value_loss.item(), policy_loss.item(), loss.item(), policy_predictions.detach().cpu().numpy(), empirical_policies.detach().cpu().numpy(), value_predictions.detach().cpu().numpy(), batch_zs.detach().cpu().numpy())
+            with open(f"/Users/hollymandel/Documents/FiveZero/fivezero/train/dec_11/training_data_{epoch}_{training_epoch}.pkl", "wb") as f:
+                pickle.dump(save_tuple, f)
+
+            print("Loss: ", loss.item())
+
+    # evaluator -- is updated model better? skip for now
 
 
 print(f"Wins for positive player: {wins_p}")
