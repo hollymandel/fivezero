@@ -25,7 +25,7 @@ class Actor(IntEnum):
 class State:
     def __init__(self, board: np.ndarray, player: Actor | None = None):
         self.board = board
-        self.player = player if player is not None else Actor.POSITIVE
+        self.player = player if player is not None else Actor.POSITIVE # next-to-play
         
         if all(board.reshape(-1) == 0):
             assert self.player == Actor.POSITIVE

@@ -1,6 +1,17 @@
 jupyterlab
 ipykernel
-torch
-numpy
 pandas
-matplotlib
+seaborn
+
+# Pin NumPy < 2 to avoid ABI break with many compiled extensions
+numpy<2
+
+# Matplotlib wheels are fine with NumPy 1.26.x; keep it modern but stable
+matplotlib>=3.8,<3.10
+
+# Torch (choose one of these depending on what you want)
+torch>=2.2,<2.4
+
+# If you’re using notebooks in VS Code
+ipykernel>=6.29
+jupyterlab>=4.2

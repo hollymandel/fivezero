@@ -1,9 +1,10 @@
 import pdb
 
-from gameEngine import *
-from net import ConvNet
-from tree import Node
-from step import play_step
+from fivezero.gameEngine import *
+from fivezero.net import ConvNet
+from fivezero.tree import Node
+from fivezero.train.step import play_step
+from fivezero.train.update import training_step
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -26,29 +27,6 @@ net = ConvNet(device)
 value_criterion = nn.MSELoss()
 policy_criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(net.parameters(), lr=0.001)
-
-def loss_function(policy_predictions, value_predictions, batch_zs):
-    value_loss = value_criterion(value_predictions, batch_zs)
-    policy_loss = -1 * torch.log(policy_predictions)
-    return (value_loss + policy_loss).mean()
-
-# def represent_child_distribution(child_visits_raw: dict[int, int], temperature) -> np.ndarray:
-#     """cannonical representation of child distribution for 
-#     MCTS rollouts to match shape of policy network output"""
-
-#     distribution_tensor = torch.zeros(N**2)
-#     for move, visits in child_visits_raw.items():
-#         distribution_tensor[move] = np.power(visits, 1/temperature)
-#     return distribution_tensor / torch.sum(distribution_tensor)
-
-def node_to_child_distribution(parent, temperature) -> np.ndarray:
-    """cannonical representation of child distribution"""
-
-    distribution_tensor = np.zeros(N**2)
-    assert parent.fully_expanded()
-    for child in parent.children:
-        distribution_tensor[child.move] = np.power(child.visits, 1/temperature)
-    return torch.tensor(distribution_tensor / np.sum(distribution_tensor))
 
 for epoch in range(N_epochs):
     traces = []
@@ -76,50 +54,63 @@ for epoch in range(N_epochs):
         elif z == 0:
             draws += 1
         trace = [(parent_node, child_node, z) for parent_node, child_node in trace]
-        trace = trace[::-1]
 
         traces.extend(trace)
         game_end = time.time()
         print(f"Game {game} of epoch {epoch} took {game_end - game_start} seconds")
-    
+
+    assert len(traces) > 0, f"No traces collected in epoch {epoch}"
+
+    import pdb; pdb.set_trace()
     # update in batches
     for training_epoch in range(N_training_epochs):
         random.shuffle(traces)
         for batch in range(0, len(traces), batch_size):
+            
             batch_traces = traces[batch:batch+batch_size]
-            batch_states = [ parent_node.game_state for parent_node, _, _ in batch_traces ]
-            batch_states = torch.concatenate([ net.encode(state) for state in batch_states ], dim=0)
+            value_loss, policy_loss, loss, policy_predictions, empirical_policies, value_predictions, batch_zs = training_step(batch_traces, net, value_criterion, policy_criterion, optimizer)
 
-            batch_moves = torch.tensor([ child_node.move for _, child_node, _ in batch_traces ], dtype=torch.int64, device=device) 
-            batch_zs = torch.tensor([ z for _, _, z in batch_traces ], dtype=torch.float32, device=device)   
+            print("Value loss: ", value_loss)
+            print("Policy loss: ", policy_loss)
+            print("Loss: ", loss)
 
-            # net predictions
-            policy_predictions, value_predictions = net.forward(batch_states)
-            value_predictions = [
-                value_predictions[0, child_node.move] for i, (_, child_node, _) in enumerate(batch_traces)
-            ]
-            value_predictions = torch.stack(value_predictions, dim=0)
+            # batch_states = [ parent_node.game_state for parent_node, _, _ in batch_traces ]
+            # batch_states = torch.concatenate([ net.encode(state) for state in batch_states ], dim=0)
 
-            # empirical distribution of child nodes
-            empirical_policies = [
-                node_to_child_distribution(parent_node, 1.0) for parent_node, _, _ in batch_traces
-            ]
-            empirical_policies = torch.stack(empirical_policies, dim=0)
+            # batch_moves = torch.tensor([ child_node.move for _, child_node, _ in batch_traces ], dtype=torch.int64, device=device) 
+            # batch_zs = torch.tensor([ z for _, _, z in batch_traces ], dtype=torch.float32, device=device)   
 
-            value_loss = value_criterion(value_predictions, batch_zs)
-            policy_loss = policy_criterion(policy_predictions, empirical_policies)
-            loss = value_loss + policy_loss
+            # # net predictions
+            # policy_predictions, value_predictions = net.forward(batch_states)
+            # value_predictions = [
+            #     value_predictions[0, child_node.move] for i, (_, child_node, _) in enumerate(batch_traces)
+            # ]
+            # value_predictions = torch.stack(value_predictions, dim=0)
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            # # empirical distribution of child nodes
+            # empirical_policies = [
+            #     node_to_child_distribution(parent_node, 1.0) for parent_node, _, _ in batch_traces
+            # ]
+            # empirical_policies = torch.stack(empirical_policies, dim=0)
+
+            # # basic sanity checks before computing loss
+            # assert torch.isfinite(empirical_policies).all(), "Non-finite values in empirical policies"
+            # assert (empirical_policies.sum(dim=1) > 0).all(), "Zero empirical policy row"
+
+            # value_loss = value_criterion(value_predictions, batch_zs)
+            # policy_loss = policy_criterion(policy_predictions, empirical_policies)
+            # loss = value_loss + policy_loss
+
+            # optimizer.zero_grad()
+            # loss.backward()
+            # optimizer.step()
 
             # save some data 
-            save_tuple = (value_loss.item(), policy_loss.item(), loss.item(), policy_predictions.detach().cpu().numpy(), empirical_policies.detach().cpu().numpy(), value_predictions.detach().cpu().numpy(), batch_zs.detach().cpu().numpy())
-            with open(f"/Users/hollymandel/Documents/FiveZero/fivezero/train/dec_11/training_data_{epoch}_{training_epoch}.pkl", "wb") as f:
-                pickle.dump(save_tuple, f)
+            # save_tuple = (value_loss.item(), policy_loss.item(), loss.item(), policy_predictions.detach().cpu().numpy(), empirical_policies.detach().cpu().numpy(), value_predictions.detach().cpu().numpy(), batch_zs.detach().cpu().numpy())
+            # with open(f"/Users/hollymandel/Documents/FiveZero/fivezero/train/dec_11/training_data_{epoch}_{training_epoch}.pkl", "wb") as f:
+            #     pickle.dump(save_tuple, f)
 
-            print("Loss: ", loss.item())
+            # print("Loss: ", loss.item())
 
     # evaluator -- is updated model better? skip for now
 

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from typing import List
-from fivezero.gameEngine import N, State
+from fivezero.gameEngine import N, State, Actor
 
 class ConvNet(torch.nn.Module):
     def __init__(self, device: torch.device):
@@ -23,9 +23,14 @@ class ConvNet(torch.nn.Module):
         self.to(device)
 
     def encode(self, x: State):
-        """ returns board as 1x2x5x5, stack batch along dimension 0"""
-        x_board = torch.tensor(x.board == 1, dtype=torch.float32, device=self.device)
-        x_opponent = torch.tensor(x.board == -1, dtype=torch.float32, device=self.device)
+        """ Board encoding such that first channel is next-to-play (State.player) stones, second channel 
+        is opponent's stones. returns board as 1x2x5x5, stack batch along dimension 0"""
+        if x.player == Actor.POSITIVE:
+            x_board = torch.tensor(x.board == 1, dtype=torch.float32, device=self.device)
+            x_opponent = torch.tensor(x.board == -1, dtype=torch.float32, device=self.device)
+        else:
+            x_board = torch.tensor(x.board == -1, dtype=torch.float32, device=self.device)
+            x_opponent = torch.tensor(x.board == 1, dtype=torch.float32, device=self.device)
         x = torch.stack([x_board, x_opponent], dim=0)
         # add batch dimension
         x = x.unsqueeze(0)

@@ -1,3 +1,8 @@
 *.pyc
 __pycache__/
-fivezero/train/dec_11/*
+fivezero/train/dec_11
+fivezero/train/dec_11_training.ipynb
+test/train/sample_training_data
+.DS_Store
+.venv
+fivezero.egg-info/
