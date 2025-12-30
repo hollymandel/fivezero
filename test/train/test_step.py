@@ -7,7 +7,7 @@ from fivezero.tree import Node
 import numpy as np
 from copy import deepcopy
 
-N_rollouts_per_move = 1000
+N_rollouts_per_move = 256
 
 def test_step():
     winners = []

@@ -6,7 +6,7 @@ from torch import nn
 import torch
 from copy import deepcopy
 
-c = 10 * 1.414 # policy weighting factor
+c = 1.414 # policy weighting factor
 eta = 0.1 # exploration bonus
 
 class Node:
@@ -134,10 +134,14 @@ class Node:
 
     def print_children(self):
     # print visit counts, values, and policies for each child in a nice table
+
         print(f"Children of {self}:")
         print(f"{'Move':<10} {'Visits':>8} {'Value':>8} {'Policy':>10} {'UCT Value':>10}")
         print("-" * 40)
+
+        total_visits = 0
         for child in self.children:
+            total_visits += child.visits
             print(
                 f"{child.move:<10} "
                 f"{child.visits:>8d} "
@@ -145,3 +149,5 @@ class Node:
                 f"{child._P:>10.3f} "
                 f"{child.puct_selection_value():>10.3f}"
             )
+        print("-" * 40)
+        print(f"Total visits: {total_visits}")

@@ -12,7 +12,7 @@ import pickle
 N_epochs = 100
 games_per_epoch = 10
 epochs_in_buffer = 3
-mcts_rollouts_per_move = 512
+mcts_rollouts_per_move = 256
 batch_size = 64
 training_batches_per_epoch = 20
 use_checkpoint = None
@@ -33,7 +33,7 @@ else:
 
 value_criterion = nn.MSELoss()
 policy_criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(net.parameters(), lr=0.0001)
+optimizer = optim.Adam(net.parameters(), lr=0.001)
 
 data_dictionary = {
     "losses": [],
@@ -71,9 +71,12 @@ for epoch in range(N_epochs):
             trace.append((parent_node, child_node))
             game_state = child_node.game_state
 
-            parent_node = child_node
-            # # avoiding MCTS contamination between steps
-            # parent_node = Node(move=None, actor=child_node.actor, game_state=game_state, parent=None)
+            # avoiding MCTS contamination between steps. This is necessary to preserve the statistics
+            # for policy training. If you continue expanding from the same root, the exploration distribution
+            # will heavily skew towards the node you selected and not be useful for training the policy.
+            # However, the trace should keep pointers to the nodes used at the time. A check is whether
+            # the parent nodes contain MCTS_ROLLOUTS_PER_MOVE total visits.
+            parent_node = Node(move=None, actor=child_node.actor, game_state=game_state, parent=None)
 
         z = asymmetric_winner(game_state.board)
         if z == 1:
@@ -103,7 +106,6 @@ for epoch in range(N_epochs):
         average_loss = 0
 
         batch_traces, batch_game_indices, batch_epochs = training_buffer.sample_from_buffer(batch_size)
-        
         value_loss, policy_loss, loss, policy_predictions, empirical_policies, value_predictions, batch_zs = training_step(batch_traces, net, value_criterion, policy_criterion, optimizer)
 
         # fudged for printing niceness
