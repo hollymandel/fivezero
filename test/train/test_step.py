@@ -5,7 +5,6 @@ from fivezero.net import ConvNet
 from fivezero.gameEngine import new_game, is_terminal, winner
 from fivezero.tree import Node
 import numpy as np
-import pdb
 from copy import deepcopy
 
 N_rollouts_per_move = 1000
@@ -25,7 +24,7 @@ def test_step():
         root = Node(game_state=game, actor=1, move=None) # new tree for each game
         parent_node = root
         while not is_terminal(game):
-            parent_node, child_node = play_step(parent_node, player_net=None, opponent_net=None, use_uct=True, N_rollouts_per_move=N_rollouts_per_move, temperature=0.01)
+            parent_node, child_node = play_step(parent_node, player_net=None, opponent_net=None, use_uct=True, N_rollouts_per_move=N_rollouts_per_move, temperature=0)
             game = child_node.game_state
             parent_node = child_node # shared tree for all steps in each game
 

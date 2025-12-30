@@ -9,7 +9,7 @@ def play_step(parent_node: Node, player_net: ConvNet | None, opponent_net: ConvN
     """
     Evaluate the given network on the given root node.
     """
-
+    
     start_state = parent_node.game_state
 
     if is_terminal(start_state):
@@ -23,12 +23,19 @@ def play_step(parent_node: Node, player_net: ConvNet | None, opponent_net: ConvN
             mcts_rollout(parent_node, opponent_net, player_net, use_uct)
 
     # determine distribution of the root node's children
-    child_visits_raw = { child.move: child.visits for child in parent_node.children }
-    child_distribution = [ np.power(child.visits, 1/temperature) for child in parent_node.children ]
+    if temperature == 0:
+        # if temperature is 0, we just choose the child with the most visits
+        max_visits = max(child.visits for child in parent_node.children)
+        child_distribution = [ 1 if child.visits == max_visits else 0 for child in parent_node.children ]
+    else:
+        child_distribution = [ np.power(child.visits, 1/temperature) for child in parent_node.children ]
+
     child_distribution = child_distribution / np.sum(child_distribution)
     # select a child based on the distribution
     child_node = np.random.choice(parent_node.children, p=child_distribution)
 
+    # print("Parent state after rollouts:")
+    # print(parent_node.print_children())
     return parent_node, child_node
 
 

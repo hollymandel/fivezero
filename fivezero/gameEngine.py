@@ -67,6 +67,13 @@ def winner(board: np.ndarray) -> int:
                         return v
     return 0
 
+def asymmetric_winner(board: np.ndarray, bias: float = 0.1) -> int:
+    # small bias to discourage draws
+    w = winner(board)
+    if w != 0:
+        return w * (1 + bias)
+    return 0
+
 def terminal_value(s: State):
     """
     value from the perspective of the player to move in state s:

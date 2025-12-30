@@ -16,7 +16,7 @@ class ConvNet(torch.nn.Module):
         self.conv4 = torch.nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
         self.relu4 = torch.nn.ReLU()
         self.fc_policy = torch.nn.Linear(32 * N**2, N**2) # P(s,a) prob of each move a given s
-        self.fc_value = torch.nn.Linear(32 * N**2, N**2) # Q(s,a) value of each move a given s
+        self.fc_value = torch.nn.Linear(32 * N**2, 1) # V(s) value given s 
         self.device = device
 
         # move to device

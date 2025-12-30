@@ -1,32 +1,53 @@
-import pdb
-
 from fivezero.gameEngine import *
 from fivezero.net import ConvNet
 from fivezero.tree import Node
 from fivezero.train.step import play_step
-from fivezero.train.update import training_step
+from fivezero.train.training_utils import training_step, TrainingBuffer
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-import random
 import time
 import pickle
 
-N_epochs = 10
+N_epochs = 100
 games_per_epoch = 10
-mcts_rollouts_per_move = 1000
+epochs_in_buffer = 3
+mcts_rollouts_per_move = 512
 batch_size = 64
-N_training_epochs = 10
+training_batches_per_epoch = 20
+use_checkpoint = None
+# use_checkpoint = "/Users/hollymandel/Documents/FiveZero/data/dec_28/latest_model_2.pth"
+temperature_decay = 0.99
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-root = Node(move=None, actor=1, game_state=new_game())
+# load model if it exists
 net = ConvNet(device)
+
+if use_checkpoint is not None:
+    print(f"Loading checkpoint from {use_checkpoint}")
+    net.load_state_dict(torch.load(use_checkpoint))
+else:
+    print("No checkpoint provided, starting from scratch")
+
 value_criterion = nn.MSELoss()
 policy_criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(net.parameters(), lr=0.001)
+optimizer = optim.Adam(net.parameters(), lr=0.0001)
+
+data_dictionary = {
+    "losses": [],
+    "value_losses": [],
+    "policy_losses": [],
+    "policy_predictions_list": [],
+    "empirical_policy_list": [],
+    "value_predictions_list": [],
+    "batch_zs_list": [],
+    "epoch_index": [],
+    "batch_index": [],
+    "game_index": []
+}
+training_buffer = TrainingBuffer(epochs_in_buffer)
 
 for epoch in range(N_epochs):
     traces = []
@@ -34,91 +55,81 @@ for epoch in range(N_epochs):
     wins_n = 0
     draws = 0
 
+    epoch_traces = []
+    game_index_traces = []
     for game in range(games_per_epoch):
         game_start = time.time()
         # play game, collect rollouts
         trace = []
         game_state = new_game()
+        
+        root = Node(move=None, actor=1, game_state=new_game())
         parent_node = root
+
         while not is_terminal(game_state):
-            parent_node, child_node = play_step(parent_node, net, net, temperature=1.0, N_rollouts_per_move=mcts_rollouts_per_move)
+            parent_node, child_node = play_step(parent_node, net, net, temperature=temperature_decay**epoch, N_rollouts_per_move=mcts_rollouts_per_move)
             trace.append((parent_node, child_node))
             game_state = child_node.game_state
-            parent_node = child_node
 
-        z = winner(game_state.board)
+            parent_node = child_node
+            # # avoiding MCTS contamination between steps
+            # parent_node = Node(move=None, actor=child_node.actor, game_state=game_state, parent=None)
+
+        z = asymmetric_winner(game_state.board)
         if z == 1:
             wins_p += 1
         elif z == -1:
             wins_n += 1
-        elif z == 0:
+        else:
             draws += 1
         trace = [(parent_node, child_node, z) for parent_node, child_node in trace]
+        epoch_traces.extend(trace)
+        game_index_traces.extend([ game ] * len(trace))
 
-        traces.extend(trace)
         game_end = time.time()
-        print(f"Game {game} of epoch {epoch} took {game_end - game_start} seconds")
+        # print(f"Game {game} of epoch {epoch} took {game_end - game_start} seconds")
 
-    assert len(traces) > 0, f"No traces collected in epoch {epoch}"
+    # print("Wins positive: ", wins_p)
+    # print("Wins negative: ", wins_n)
+    # print("Draws: ", draws)
 
-    import pdb; pdb.set_trace()
-    # update in batches
-    for training_epoch in range(N_training_epochs):
-        random.shuffle(traces)
-        for batch in range(0, len(traces), batch_size):
-            
-            batch_traces = traces[batch:batch+batch_size]
-            value_loss, policy_loss, loss, policy_predictions, empirical_policies, value_predictions, batch_zs = training_step(batch_traces, net, value_criterion, policy_criterion, optimizer)
+    training_buffer.add_epoch(epoch_traces, game_index_traces)
 
-            print("Value loss: ", value_loss)
-            print("Policy loss: ", policy_loss)
-            print("Loss: ", loss)
-
-            # batch_states = [ parent_node.game_state for parent_node, _, _ in batch_traces ]
-            # batch_states = torch.concatenate([ net.encode(state) for state in batch_states ], dim=0)
-
-            # batch_moves = torch.tensor([ child_node.move for _, child_node, _ in batch_traces ], dtype=torch.int64, device=device) 
-            # batch_zs = torch.tensor([ z for _, _, z in batch_traces ], dtype=torch.float32, device=device)   
-
-            # # net predictions
-            # policy_predictions, value_predictions = net.forward(batch_states)
-            # value_predictions = [
-            #     value_predictions[0, child_node.move] for i, (_, child_node, _) in enumerate(batch_traces)
-            # ]
-            # value_predictions = torch.stack(value_predictions, dim=0)
-
-            # # empirical distribution of child nodes
-            # empirical_policies = [
-            #     node_to_child_distribution(parent_node, 1.0) for parent_node, _, _ in batch_traces
-            # ]
-            # empirical_policies = torch.stack(empirical_policies, dim=0)
-
-            # # basic sanity checks before computing loss
-            # assert torch.isfinite(empirical_policies).all(), "Non-finite values in empirical policies"
-            # assert (empirical_policies.sum(dim=1) > 0).all(), "Zero empirical policy row"
-
-            # value_loss = value_criterion(value_predictions, batch_zs)
-            # policy_loss = policy_criterion(policy_predictions, empirical_policies)
-            # loss = value_loss + policy_loss
-
-            # optimizer.zero_grad()
-            # loss.backward()
-            # optimizer.step()
-
-            # save some data 
-            # save_tuple = (value_loss.item(), policy_loss.item(), loss.item(), policy_predictions.detach().cpu().numpy(), empirical_policies.detach().cpu().numpy(), value_predictions.detach().cpu().numpy(), batch_zs.detach().cpu().numpy())
-            # with open(f"/Users/hollymandel/Documents/FiveZero/fivezero/train/dec_11/training_data_{epoch}_{training_epoch}.pkl", "wb") as f:
-            #     pickle.dump(save_tuple, f)
-
-            # print("Loss: ", loss.item())
-
-    # evaluator -- is updated model better? skip for now
-
-
-print(f"Wins for positive player: {wins_p}")
-print(f"Wins for negative player: {wins_n}")
-print(f"Draws: {draws}")
         
+    # update in batches
+    for batch in range(training_batches_per_epoch):
+        average_value_loss = 0
+        average_policy_loss = 0
+        average_loss = 0
+
+        batch_traces, batch_game_indices, batch_epochs = training_buffer.sample_from_buffer(batch_size)
+        
+        value_loss, policy_loss, loss, policy_predictions, empirical_policies, value_predictions, batch_zs = training_step(batch_traces, net, value_criterion, policy_criterion, optimizer)
+
+        # fudged for printing niceness
+        average_value_loss += value_loss# / training_batches_per_epoch
+        average_policy_loss += policy_loss# / training_batches_per_epoch
+        average_loss += loss# / training_batches_per_epoch
+
+        data_dictionary["epoch_index"].append(batch_epochs)
+        data_dictionary["game_index"].append(batch_game_indices)
+        data_dictionary["losses"].append(loss)
+        data_dictionary["value_losses"].append(value_loss)
+        data_dictionary["policy_losses"].append(policy_loss)
+        data_dictionary["policy_predictions_list"].append(policy_predictions)
+        data_dictionary["empirical_policy_list"].append(empirical_policies)
+        data_dictionary["value_predictions_list"].append(value_predictions)
+        data_dictionary["batch_zs_list"].append(batch_zs)
+
+    # print value, policy, and total loss in one line
+    print(f"Epoch {epoch} of {N_epochs} complete. Average value loss: {average_value_loss:.2f}, average policy loss: {average_policy_loss:.2f}, average total loss: {average_loss:.2f}")
+
+    with open(f"/Users/hollymandel/Documents/FiveZero/data/dec_28/all_data.pkl", "wb") as f:
+        pickle.dump(data_dictionary, f)
+
+    # checkpoint of model
+    torch.save(net.state_dict(), f"/Users/hollymandel/Documents/FiveZero/data/dec_28/latest_model.pth")
+
 
 
         

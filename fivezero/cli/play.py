@@ -48,9 +48,15 @@ def load_network(model_path: str, device: torch.device) -> ConvNet:
     return net
 
 
-def choose_network_move(net: ConvNet, state) -> int:
+def choose_network_move(net: ConvNet, state, print_net_outputs: bool = True) -> int:
     with torch.no_grad():
         logits = net.forward_policy(net.encode(state)).squeeze(0)
+        values = net.forward_value(net.encode(state)).squeeze(0)
+
+    if print_net_outputs:
+        print(f"Logits: {logits}")
+        print(f"Values: {values}")
+
     moves = torch.tensor(legal_moves(state), device=logits.device, dtype=torch.long)
     masked_logits = torch.full_like(logits, float("-inf"))
     masked_logits[moves] = logits[moves]

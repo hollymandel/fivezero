@@ -1,14 +1,9 @@
 from fivezero.tree import Node
 from fivezero.net import ConvNet
 from dataclasses import dataclass
-from fivezero.gameEngine import State, step, random_play, Move, is_terminal, winner
+from fivezero.gameEngine import State, step, random_play, Move, is_terminal, winner, asymmetric_winner
 from typing import List
-import pdb
-@dataclass
-class trace_sample:
-    game_state: State
-    policy: dict[Move, float]
-    value: float
+
 
 def mcts_rollout(root: Node, netp: ConvNet | None, netn: ConvNet | None = None, use_uct: bool = False) -> None:
     """
@@ -63,18 +58,19 @@ def mcts_rollout(root: Node, netp: ConvNet | None, netn: ConvNet | None = None, 
         # random play
         game_state = random_play(game_state)
 
-    # import pdb; pdb.set_trace()
-
     # backpropagate the rollout value and frequencies into the node and its children
-    value = winner(game_state.board)
+    
+    # In principal you would backpropagate the value of the terminal state, but we don't because all games terminate.
+    value = asymmetric_winner(game_state.board)
+
     if value is None:
         raise ValueError("Game state is not terminal")
     
     while node.parent is not None:
-        node.value += value * node.actor * -1
+        node.value += value * node.actor 
         node.visits += 1
         node = node.parent
-    node.value += value * node.actor * -1
+    node.value += value * node.actor 
     node.visits += 1
 
     # print("Rollout completed")
