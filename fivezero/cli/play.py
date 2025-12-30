@@ -24,9 +24,10 @@ def parse_args() -> argparse.Namespace:
         help="Choose your side: X plays first (Actor.POSITIVE), O plays second.",
     )
     parser.add_argument(
-        "--device",
-        default="cpu",
-        help="PyTorch device string, e.g. cpu or cuda (defaults to cpu).",
+        "--verbose",
+        default="False",
+        help="Set to True to print network outputs.",
+        type=bool,
     )
     return parser.parse_args()
 
@@ -48,15 +49,54 @@ def load_network(model_path: str, device: torch.device) -> ConvNet:
     return net
 
 
-def choose_network_move(net: ConvNet, state, print_net_outputs: bool = True) -> int:
+def choose_network_move(net: ConvNet, state, print_net_outputs: bool = False) -> int:
     with torch.no_grad():
         logits = net.forward_policy(net.encode(state)).squeeze(0)
-        values = net.forward_value(net.encode(state)).squeeze(0)
-
+        # values = net.forward_value(net.encode(state)).squeeze(0)
+    
+    values = []
+    for move in range(25):
+        if move in legal_moves(state):
+            child_state = step(state, move)
+            child_value = net.forward_value(net.encode(child_state)).squeeze(0)
+            values.append(child_value.item())
+        else:
+            values.append(0)
+            
     if print_net_outputs:
-        print(f"Logits: {logits}")
-        print(f"Values: {values}")
+        # print network outputs and values in grid form to visually match board
+        print("Network outputs:")
+        print("-" * 25)
+        print("|", end="")
+        for i in range(N):
+            print(f" {i:2} |", end="")
+        print("\n" + "-" * 25)
+        for i in range(N):
+            print(f" {i:2} |", end="")
+            for j in range(N):
+                print(f" {logits[i * N + j]:.2f} |", end="")
+            print("\n" + "-" * 25)
+        print("Values:")
+        print("-" * 25)
+        print("|", end="")
+        for i in range(N):
+            print(f" {i:2} |", end="")
+        print("\n" + "-" * 25)
+        for i in range(N):
+            print(f" {i:2} |", end="")
+            for j in range(N):
+                print(f" {values[i * N + j]:.2f} |", end="")
+            print("\n" + "-" * 25)
 
+
+        
+
+    #     
+    #     print(f"Values: {values}")
+
+    # compute value for all possible children and print
+    
+    # import pdb; pdb.set_trace()#
     moves = torch.tensor(legal_moves(state), device=logits.device, dtype=torch.long)
     masked_logits = torch.full_like(logits, float("-inf"))
     masked_logits[moves] = logits[moves]
@@ -92,7 +132,7 @@ def prompt_human_move(state) -> int:
         return move
 
 
-def play_game(net: ConvNet, human_actor: Actor) -> None:
+def play_game(net: ConvNet, human_actor: Actor, verbose: bool = False) -> None:
     state = new_game()
     print(f"You are {'X' if human_actor == Actor.POSITIVE else 'O'}.")
     print("X moves first. Enter Ctrl+C or 'q' to quit.\n")
@@ -106,7 +146,7 @@ def play_game(net: ConvNet, human_actor: Actor) -> None:
         if state.player == human_actor:
             move = prompt_human_move(state)
         else:
-            move = choose_network_move(net, state)
+            move = choose_network_move(net, state, verbose)
             r, c = divmod(move, N)
             print(f"Network plays: {r} {c}")
 
@@ -125,12 +165,12 @@ def play_game(net: ConvNet, human_actor: Actor) -> None:
 
 def main() -> int:
     args = parse_args()
-    device = torch.device(args.device)
-    net = load_network(args.model_path, device)
+    verbose = args.verbose
+    net = load_network(args.model_path, device="cpu")
     human_actor = Actor.POSITIVE if args.human == "x" else Actor.NEGATIVE
 
     try:
-        play_game(net, human_actor)
+        play_game(net, human_actor, verbose)
     except KeyboardInterrupt:
         print("\nExiting game.")
         return 1
