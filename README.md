@@ -1,6 +1,6 @@
 # FiveZero
 
-AlphaZero-style self-play training for 5x5 tic tac toe (four to win). A convolutional policy/value network plus Monte Carlo Tree Search produces moves. An example trained checkpoint (`example_trained.pth`) is included. 
+AlphaZero-style self-play training for 5x5 tic tac toe (four to win). A convolutional policy/value network plus Monte Carlo Tree Search produces moves. Training occurs in `fivezero/train/TrainConvNet.py`. An example trained checkpoint (`example_trained.pth`) is included. 
 
 This repo is just for education about AlphaZero and has not been optimized for performance. The example model is undertrained (but still decent). 
 
