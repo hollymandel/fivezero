@@ -1,0 +1,9 @@
+jupyterlab
+ipykernel
+pandas
+seaborn
+numpy<2
+matplotlib>=3.8,<3.10
+torch>=2.2,<2.4
+ipykernel>=6.29
+jupyterlab>=4.2
