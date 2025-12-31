@@ -1,13 +1,11 @@
 # test train/step.py by setting up games with clear best choices for each player and checking that the step function chooses the best choice
 
 from fivezero.train.step import play_step
-from fivezero.net import ConvNet
 from fivezero.gameEngine import new_game, is_terminal, winner
 from fivezero.tree import Node
 import numpy as np
-from copy import deepcopy
 
-N_rollouts_per_move = 256
+N_rollouts_per_move = 512
 
 def test_step():
     winners = []
@@ -26,10 +24,8 @@ def test_step():
         while not is_terminal(game):
             parent_node, child_node = play_step(parent_node, player_net=None, opponent_net=None, use_uct=True, N_rollouts_per_move=N_rollouts_per_move, temperature=0)
             game = child_node.game_state
-            parent_node = child_node # shared tree for all steps in each game
-
-            # # not building a new tree, just updating the parent node
-            # parent_node = Node(game_state=game, actor=child_node.actor, move=child_node.move, parent=None)
+            # detach parent node to prevent excessive backprop from later steps
+            parent_node = Node(game_state=game, actor=child_node.actor, move=child_node.move, parent=None)
 
         this_winner = winner(game.board)
         winners.append(this_winner)

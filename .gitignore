@@ -1,6 +1,6 @@
 *.pyc
 __pycache__/
-test/train/sample_training_data
+test/sample_training_data
 .DS_Store
 .venv
 fivezero.egg-info/

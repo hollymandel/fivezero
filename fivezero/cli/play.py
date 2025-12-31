@@ -5,12 +5,23 @@ import sys
 
 import torch
 
-from fivezero.gameEngine import Actor, N, legal_moves, new_game, render, step, terminal_value, winner
+from fivezero.gameEngine import (
+    Actor,
+    N,
+    legal_moves,
+    new_game,
+    render,
+    step,
+    terminal_value,
+    winner,
+)
 from fivezero.net import ConvNet
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Play FiveZero against a saved network.")
+    parser = argparse.ArgumentParser(
+        description="Play FiveZero against a saved network."
+    )
     parser.add_argument(
         "--model-path",
         "-m",
@@ -26,8 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--verbose",
         default="False",
-        help="Set to True to print network outputs.",
-        type=bool,
+        help="Print network logits/values for each position.",
     )
     return parser.parse_args()
 
@@ -52,8 +62,7 @@ def load_network(model_path: str, device: torch.device) -> ConvNet:
 def choose_network_move(net: ConvNet, state, print_net_outputs: bool = False) -> int:
     with torch.no_grad():
         logits = net.forward_policy(net.encode(state)).squeeze(0)
-        # values = net.forward_value(net.encode(state)).squeeze(0)
-    
+
     values = []
     for move in range(25):
         if move in legal_moves(state):
@@ -62,7 +71,7 @@ def choose_network_move(net: ConvNet, state, print_net_outputs: bool = False) ->
             values.append(child_value.item())
         else:
             values.append(0)
-            
+
     if print_net_outputs:
         # print network outputs and values in grid form to visually match board
         print("Network outputs:")
@@ -87,22 +96,14 @@ def choose_network_move(net: ConvNet, state, print_net_outputs: bool = False) ->
             for j in range(N):
                 print(f" {values[i * N + j]:.2f} |", end="")
             print("\n" + "-" * 25)
-        # write values to csv
-        import datetime
-        import pickle
-        with open(f"values_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pkl", "wb") as f:
-            pickle.dump({"values": values, "logits": logits}, f)
 
+        # # Debugging:
+        # # write values to csv
+        # import datetime
+        # import pickle
+        # with open(f"values_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pkl", "wb") as f:
+        #     pickle.dump({"values": values, "logits": logits}, f)
 
-
-        
-
-    #     
-    #     print(f"Values: {values}")
-
-    # compute value for all possible children and print
-    
-    # import pdb; pdb.set_trace()#
     moves = torch.tensor(legal_moves(state), device=logits.device, dtype=torch.long)
     masked_logits = torch.full_like(logits, float("-inf"))
     masked_logits[moves] = logits[moves]
@@ -111,7 +112,9 @@ def choose_network_move(net: ConvNet, state, print_net_outputs: bool = False) ->
 
 def prompt_human_move(state) -> int:
     moves = set(int(m) for m in legal_moves(state))
-    prompt = "Enter your move as 'row col' (0-indexed) or a single index 0-24 (q to quit): "
+    prompt = (
+        "Enter your move as 'row col' (0-indexed) or a single index 0-24 (q to quit): "
+    )
     while True:
         raw = input(prompt).strip().lower()
         if raw in {"q", "quit", "exit"}:
@@ -172,6 +175,14 @@ def play_game(net: ConvNet, human_actor: Actor, verbose: bool = False) -> None:
 def main() -> int:
     args = parse_args()
     verbose = args.verbose
+
+    if verbose.lower() == "true":
+        verbose = True
+    elif verbose.lower() == "false":
+        verbose = False
+    else:
+        raise ValueError("Verbose must be True or False")
+
     net = load_network(args.model_path, device="cpu")
     human_actor = Actor.POSITIVE if args.human == "x" else Actor.NEGATIVE
 

@@ -1,12 +1,16 @@
-from tree import Node
-from mcts import mcts_rollout
-from net import ConvNet
-from gameEngine import Actor, new_game, is_terminal, winner
 import numpy as np
+
+from fivezero.gameEngine import Actor, is_terminal, new_game, winner
+from fivezero.net import ConvNet
+from fivezero.train.mcts import mcts_rollout
+from fivezero.tree import Node
 
 TEMPERATURE = 1.0
 
-def evaluate(new_net: ConvNet, old_net: ConvNet, N_games: int, N_rollouts_per_move: int) -> float:
+
+def evaluate(
+    new_net: ConvNet, old_net: ConvNet, N_games: int, N_rollouts_per_move: int
+) -> float:
     """
     Evaluate the given network on the given root node.
     """
@@ -17,22 +21,26 @@ def evaluate(new_net: ConvNet, old_net: ConvNet, N_games: int, N_rollouts_per_mo
             new_player = Actor.POSITIVE
         else:
             new_player = Actor.NEGATIVE
-            
+
         # Game Tree maintained independent of MCTS search for each step
         game_state = new_game()
         game_trace = []
 
         while not is_terminal(game_state):
             # create an MCTS node for the current game state
-            node = Node(game_state=game_state, parent=None, actor=game_state.player, move=None)
+            node = Node(
+                game_state=game_state, parent=None, actor=game_state.player, move=None
+            )
             # populate node with MCTS rollouts
             for _ in range(N_rollouts_per_move):
                 if new_player == Actor.POSITIVE:
                     mcts_rollout(node, new_net, old_net)
                 else:
-                    mcts_rollout(node, old_net, new_net)        
+                    mcts_rollout(node, old_net, new_net)
             # determine distribution of the root node's children
-            child_distribution = [ np.power(child.visits, 1/TEMPERATURE) for child in node.children ]
+            child_distribution = [
+                np.power(child.visits, 1 / TEMPERATURE) for child in node.children
+            ]
             child_distribution = child_distribution / np.sum(child_distribution)
             # select a child based on the distribution
             child = np.random.choice(node.children, p=child_distribution)
@@ -44,8 +52,3 @@ def evaluate(new_net: ConvNet, old_net: ConvNet, N_games: int, N_rollouts_per_mo
         winners.append(winner(game_state.board))
 
     return np.mean(winners)
-    
-
-
-        
-        
