@@ -2,7 +2,7 @@
 
 AlphaZero-style self-play training for 5x5 tic tac toe (four to win). During game play, a large number of MCTS
 rollouts guided by the current policy network are used to select each step. During training, the policy network
-is updated in the direction of the empirical distribution from MCTS, while the value network is updated to predict the game outcome. In this implementation the value network is notused during MCTS (for value backpropagation) because all rollouts are taken to the end of the game. 
+is updated in the direction of the empirical distribution from MCTS, while the value network is updated to predict the game outcome. In this implementation the value network is not used during MCTS (for value backpropagation) because all rollouts are taken to the end of the game. 
 
 Training occurs in `fivezero/train/TrainConvNet.py`. An example trained checkpoint (`example_trained.pth`) is included. This repo is just for education about AlphaZero and has not been optimized for performance. The example model is undertrained (but pretty decent). 
 
@@ -23,3 +23,4 @@ Some observations:
 ## Play the example model
 - From the repo root: `python -m fivezero.cli.play --model-path example_trained.pth --human x`
 - Use `--human o` to let the network open
+- Use `--verbose True` to inspect policy logits and values. 

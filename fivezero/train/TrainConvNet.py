@@ -9,7 +9,7 @@ import torch.optim as optim
 import time
 import pickle
 
-N_epochs = 100
+N_epochs = 1000
 games_per_epoch = 10
 epochs_in_buffer = 3
 mcts_rollouts_per_move = 256

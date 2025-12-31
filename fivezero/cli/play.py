@@ -58,7 +58,7 @@ def choose_network_move(net: ConvNet, state, print_net_outputs: bool = False) ->
     for move in range(25):
         if move in legal_moves(state):
             child_state = step(state, move)
-            child_value = net.forward_value(net.encode(child_state)).squeeze(0)
+            child_value = -1 * net.forward_value(net.encode(child_state)).squeeze(0)
             values.append(child_value.item())
         else:
             values.append(0)

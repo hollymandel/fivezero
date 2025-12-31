@@ -67,7 +67,7 @@ def training_step(batch_traces, net, value_criterion, policy_criterion, optimize
     batch_moves = torch.tensor([ child_node.move for _, child_node, _ in batch_traces ], dtype=torch.int64, device=device) 
     batch_zs = torch.tensor([ z * parent_node.actor for parent_node, _, z in batch_traces ], dtype=torch.float32, device=device)   
     child_values = [ parent_node.value_of_children(net) for parent_node, _, _ in batch_traces ]
-    child_values = torch.tensor(child_values, dtype=torch.float32, device=device)
+    child_values = -1.0 *torch.tensor(child_values, dtype=torch.float32, device=device)
 
     
     # net predictions
