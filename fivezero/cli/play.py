@@ -87,6 +87,12 @@ def choose_network_move(net: ConvNet, state, print_net_outputs: bool = False) ->
             for j in range(N):
                 print(f" {values[i * N + j]:.2f} |", end="")
             print("\n" + "-" * 25)
+        # write values to csv
+        import datetime
+        import pickle
+        with open(f"values_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pkl", "wb") as f:
+            pickle.dump({"values": values, "logits": logits}, f)
+
 
 
         

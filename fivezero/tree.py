@@ -43,6 +43,15 @@ class Node:
             np.sqrt(self.parent.visits) / (1 + self.visits)
         )
 
+    def value_of_children(self, policy_net: ConvNet):
+        values = []
+        for move in range(25):
+            if move in legal_moves(self.game_state):
+                values.append(policy_net.forward_value(policy_net.encode(step(self.game_state, move))).item())
+            else:
+                values.append(0)
+        return values
+
     def fully_expand(self, policy_net: ConvNet | None, overwrite: bool = False):
         if len(self.children) > 0 and not overwrite:
             raise ValueError("Node already has children, set overwrite=True to overwrite")

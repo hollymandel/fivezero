@@ -45,7 +45,8 @@ data_dictionary = {
     "batch_zs_list": [],
     "epoch_index": [],
     "batch_index": [],
-    "game_index": []
+    "game_index": [],
+    "slope_list": []
 }
 training_buffer = TrainingBuffer(epochs_in_buffer)
 
@@ -104,14 +105,16 @@ for epoch in range(N_epochs):
         average_value_loss = 0
         average_policy_loss = 0
         average_loss = 0
+        average_slope = 0
 
         batch_traces, batch_game_indices, batch_epochs = training_buffer.sample_from_buffer(batch_size)
-        value_loss, policy_loss, loss, policy_predictions, empirical_policies, value_predictions, batch_zs = training_step(batch_traces, net, value_criterion, policy_criterion, optimizer)
+        value_loss, policy_loss, loss, policy_predictions, empirical_policies, value_predictions, batch_zs, slope = training_step(batch_traces, net, value_criterion, policy_criterion, optimizer)
 
         # fudged for printing niceness
         average_value_loss += value_loss# / training_batches_per_epoch
         average_policy_loss += policy_loss# / training_batches_per_epoch
         average_loss += loss# / training_batches_per_epoch
+        average_slope += slope# / training_batches_per_epoch
 
         data_dictionary["epoch_index"].append(batch_epochs)
         data_dictionary["game_index"].append(batch_game_indices)
@@ -122,9 +125,10 @@ for epoch in range(N_epochs):
         data_dictionary["empirical_policy_list"].append(empirical_policies)
         data_dictionary["value_predictions_list"].append(value_predictions)
         data_dictionary["batch_zs_list"].append(batch_zs)
+        data_dictionary["slope_list"].append(slope)
 
     # print value, policy, and total loss in one line
-    print(f"Epoch {epoch} of {N_epochs} complete. Average value loss: {average_value_loss:.2f}, average policy loss: {average_policy_loss:.2f}, average total loss: {average_loss:.2f}")
+    print(f"Epoch {epoch} of {N_epochs} complete. Average value loss: {average_value_loss:.2f}, average policy loss: {average_policy_loss:.2f}, average total loss: {average_loss:.2f}, average slope: {average_slope:.2f}")
 
     with open(f"/Users/hollymandel/Documents/FiveZero/data/dec_28/all_data.pkl", "wb") as f:
         pickle.dump(data_dictionary, f)

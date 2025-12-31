@@ -66,13 +66,23 @@ def training_step(batch_traces, net, value_criterion, policy_criterion, optimize
 
     batch_moves = torch.tensor([ child_node.move for _, child_node, _ in batch_traces ], dtype=torch.int64, device=device) 
     batch_zs = torch.tensor([ z * parent_node.actor for parent_node, _, z in batch_traces ], dtype=torch.float32, device=device)   
+    child_values = [ parent_node.value_of_children(net) for parent_node, _, _ in batch_traces ]
+    child_values = torch.tensor(child_values, dtype=torch.float32, device=device)
 
+    
     # net predictions
     policy_predictions, value_predictions = net.forward(batch_states)
     value_predictions = [
         value_predictions[i,0] for i, _ in enumerate(batch_traces)
     ]
     value_predictions = torch.stack(value_predictions, dim=0)
+
+    # as a sanity check, check the slope between value and predictions
+    from scipy.stats import linregress
+    # import pdb; pdb.set_trace()
+    slope, intercept, r_value, p_value, std_err = linregress(child_values.detach().cpu().numpy().ravel(), policy_predictions.detach().cpu().numpy().ravel())
+    # print(f"Slope: {slope}, Intercept: {intercept}, R-value: {r_value}, P-value: {p_value}, Std-err: {std_err}")
+
 
     # empirical distribution of child nodes
     empirical_policies = [
@@ -92,4 +102,4 @@ def training_step(batch_traces, net, value_criterion, policy_criterion, optimize
     loss.backward()
     optimizer.step()
 
-    return value_loss.item(), policy_loss.item(), loss.item(), policy_predictions.detach().cpu().numpy(), empirical_policies.detach().cpu().numpy(), value_predictions.detach().cpu().numpy(), batch_zs.detach().cpu().numpy()
+    return value_loss.item(), policy_loss.item(), loss.item(), policy_predictions.detach().cpu().numpy(), empirical_policies.detach().cpu().numpy(), value_predictions.detach().cpu().numpy(), batch_zs.detach().cpu().numpy(), slope
